@@ -232,30 +232,6 @@ module LevenshteinSearcher
 	# start from an empty string and only keep the ones with lower distances
 	# similar to Matt's algorithm
 	def self.ashtar_search strings
-		cur = [""]
-		old = []
-		alphabet = find_alphabet strings
-		dist = sum_distances "", strings
-
-		until cur == old || cur == []
-			old = cur
-			perturbed = cur.map do |x| perturb x, alphabet end.flatten.uniq
-			temp_dist = dist
-			cur = perturbed.select do |w|
-				d = sum_distances w, strings
-				temp_dist = d if d < temp_dist
-				d <= dist
-			end.sort
-			dist = temp_dist
-		end
-
-		return old
+		return matt_search strings, ['']
 	end
-end
-
-if __FILE__ == $0
-	list = %w[watr mizu wesi su wodi awwa]
-	puts LevenshteinSearcher.ashtar_search(list).join ', '
-	puts LevenshteinSearcher.matt_search(list).join ', '
-	puts LevenshteinSearcher.bruteforce_search(list).join ', '
 end
