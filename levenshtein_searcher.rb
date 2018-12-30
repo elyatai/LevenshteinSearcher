@@ -161,10 +161,8 @@ module LevenshteinSearcher
 		end
 
 		# add one character to end
-		temp = str + ' '
 		alphabet.each do |a|
-			temp[-1] = a
-			out.push temp
+			out.push str + a
 		end
 
 		return out.uniq - [str]
@@ -208,6 +206,7 @@ module LevenshteinSearcher
 	end
 
 	# search algorithm Matt proposed
+	# get all possible perturbations and only keep the ones with lower distances
 	def self.matt_search strings
 		cur = strings # good luck
 		old = []
@@ -228,9 +227,20 @@ module LevenshteinSearcher
 
 		return old
 	end
+
+	# search algorithm Ashtar proposed
+	# start from an empty string and only keep the ones with lower distances
+	def self.ashtar_search strings
+		cur = [""]
+		alphabet = find_alphabet strings
+
+		cur.map do |x| perturb x, alphabet end.flatten
+	end
 end
 
 if __FILE__ == $0
 	list = %w[watr mizu wesi su wodi awwa]
+	puts LevenshteinSearcher.ashtar_search list
+	exit
 	puts LevenshteinSearcher.matt_search(list).join ', '
 end
