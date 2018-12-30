@@ -200,7 +200,7 @@ module LevenshteinSearcher
 			min, words = multithread_search space, strings, threads, max_dist
 		end
 
-		return [min, words.select(&:any?).map(&:sort)]
+		return words[min]
 	end
 
 	# search algorithm Matt proposed
@@ -254,7 +254,7 @@ end
 
 if __FILE__ == $0
 	list = %w[watr mizu wesi su wodi awwa]
-	puts LevenshteinSearcher.ashtar_search list
-	exit
+	puts LevenshteinSearcher.ashtar_search(list).join ', '
 	puts LevenshteinSearcher.matt_search(list).join ', '
+	puts LevenshteinSearcher.bruteforce_search(list).join ', '
 end
