@@ -62,7 +62,7 @@ module LevenshteinSearcher
 	# finds all strings with lowest distance, but multithreaded
 	# args are the same as on singlethread_search, but with thread count
 	def self.multithread_search space, strings, threads, max_dist=nil
-		raise 'Thread count must be more than 1!' if threads <= 1
+		raise ArgumentError, 'Thread count must be more than 1!' if threads <= 1
 
 		max_dist ||= calculate_max_distance strings
 		sorted_words = []
