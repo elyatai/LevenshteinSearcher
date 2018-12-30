@@ -216,9 +216,9 @@ module LevenshteinSearcher
 		until cur == old || cur == []
 			old = cur
 
-			perturbed = cur.map do |w| perturb w, alphabet end .uniq
+			perturbed = cur.map do |w| perturb w, alphabet end .flatten.uniq
 
-			dists = perturbed.flatten.uniq.map do |x|
+			dists = perturbed.map do |x|
 				[x, sum_distances(x, strings)]
 			end
 			cur = dists.select do |s, d| d <= cur_dist end .map(&:first).sort
@@ -232,9 +232,12 @@ module LevenshteinSearcher
 	# start from an empty string and only keep the ones with lower distances
 	def self.ashtar_search strings
 		cur = [""]
+		old = []
 		alphabet = find_alphabet strings
 
-		cur.map do |x| perturb x, alphabet end.flatten
+		until cur == old
+			perturbed = cur.map do |x| perturb x, alphabet end.flatten
+		end
 	end
 end
 
