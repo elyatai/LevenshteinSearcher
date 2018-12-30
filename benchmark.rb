@@ -1,5 +1,4 @@
 require_relative 'levenshtein_searcher.rb'
-# wouldn't really call this a benchmark since it's just one test
 
 lists = [
 	%w[watr mizu  wesi su   wodi   awwa],
