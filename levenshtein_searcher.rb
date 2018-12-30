@@ -228,7 +228,7 @@ module LevenshteinSearcher
 		return old
 	end
 
-	# search algorithm Ashtar proposed
+	# search algorithm Ashtăr proposed
 	# start from an empty string and only keep the ones with lower distances
 	# similar to Matt's algorithm
 	def self.ashtar_search strings
