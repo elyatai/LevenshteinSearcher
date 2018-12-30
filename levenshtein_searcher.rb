@@ -6,7 +6,6 @@ module LevenshteinSearcher
 
 		v0 = (0..b.length).to_a
 		v1 = []
-		#p v0
 
 		a.each_char.with_index do |a_ch, i|
 			v1[0] = i + 1
@@ -16,7 +15,6 @@ module LevenshteinSearcher
 				v1[j + 1] = [v1[j] + 1, v0[j + 1] + 1, v0[j] + cost].min
 			end
 			v0 = v1.dup
-			#p v1
 		end
 
 		return v0[b.length]
@@ -178,7 +176,7 @@ module LevenshteinSearcher
 	#   it indicates whether the file should be written to and the search space
 	#   regenerated, or if the file should just be read.
 	# - `threads` (optional) is the thread count
-	# 
+	#
 	# don't use this, matt's algorithm is faster
 	def self.bruteforce_search strings, search_space=nil, write=false, threads: 1
 		raise ArgumentError, 'Thread count must be at least 1!' if threads < 1
@@ -207,8 +205,8 @@ module LevenshteinSearcher
 
 	# search algorithm Matt proposed
 	# get all possible perturbations and only keep the ones with lower distances
-	def self.matt_search strings
-		cur = strings # good luck
+	def self.matt_search strings, base=nil
+		cur = base || strings
 		old = []
 		alphabet = find_alphabet strings
 		cur_dist = cur.map do |x| sum_distances x, strings end .min
@@ -218,11 +216,12 @@ module LevenshteinSearcher
 
 			perturbed = cur.map do |w| perturb w, alphabet end .flatten.uniq
 
-			dists = perturbed.map do |x|
-				[x, sum_distances(x, strings)]
-			end
-			cur = dists.select do |s, d| d <= cur_dist end .map(&:first).sort
-			cur_dist = dists.map(&:last).min
+			dists = perturbed.map do |x| sum_distances x, strings end
+			cur = perturbed.zip(dists)
+				.select do |s, d| d <= cur_dist end
+				.map(&:first)
+				.sort
+			cur_dist = dists.min
 		end
 
 		return old
@@ -230,14 +229,26 @@ module LevenshteinSearcher
 
 	# search algorithm Ashtar proposed
 	# start from an empty string and only keep the ones with lower distances
+	# similar to Matt's algorithm
 	def self.ashtar_search strings
 		cur = [""]
 		old = []
 		alphabet = find_alphabet strings
+		dist = sum_distances "", strings
 
-		until cur == old
-			perturbed = cur.map do |x| perturb x, alphabet end.flatten
+		until cur == old || cur == []
+			old = cur
+			perturbed = cur.map do |x| perturb x, alphabet end.flatten.uniq
+			temp_dist = dist
+			cur = perturbed.select do |w|
+				d = sum_distances w, strings
+				temp_dist = d if d < temp_dist
+				d <= dist
+			end.sort
+			dist = temp_dist
 		end
+
+		return old
 	end
 end
 
