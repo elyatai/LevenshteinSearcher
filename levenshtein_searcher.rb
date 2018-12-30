@@ -95,6 +95,7 @@ module LevenshteinSearcher
 		return [min_dist, sorted_words]
 	end
 
+	# get the alphabet used in the set of strings
 	def self.find_alphabet strings
 		strings.reduce(:+).chars.uniq.sort
 	end
