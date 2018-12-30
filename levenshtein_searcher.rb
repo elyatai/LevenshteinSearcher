@@ -219,7 +219,7 @@ module LevenshteinSearcher
 
 			dists = perturbed.map do |x| sum_distances x, strings end
 			cur = perturbed.zip(dists)
-				.select do |s, d| d <= cur_dist end
+				.select do |_, d| d <= cur_dist end
 				.map(&:first)
 				.sort
 			cur_dist = dists.min
