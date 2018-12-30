@@ -1,41 +1,39 @@
 module LevenshteinSearcher
-	# ported from https://bitbucket.org/clearer/iosifovich/
+	# my iosifovich port was broken, stole this from stackoverflow isntead
+	# https://stackoverflow.com/a/46410685
 	def self.distance a, b
-		a = a.chars
-		b = b.chars
-		start = LevenshteinSearcher.mismatch a, b
-		return 0 if !start
+		a, b = b, a if b.length < a.length
 
-		a = a[start..-1]; b = b[start..-1]
-		a, b = b, a if a.length > b.length
+		v0 = (0..b.length).to_a
+		v1 = []
+		#p v0
 
-		buffer = (0..b.length).to_a
-		buffer_size = buffer.size - 1
+		a.each_char.with_index do |a_ch, i|
+			v1[0] = i + 1
 
-		1.upto a.length do |i|
-			temp = buffer[0]
-			buffer[0] += 1
-			1.upto buffer_size do |j|
-				prev = buffer[j-1]
-				cur = buffer[j]
-				temp = [
-					[cur, prev].min + 1,
-					temp + (a[i-1] == b[j-1] ? 0 : 1)
-				].min
-				temp, buffer[j] = buffer[j], temp
+			b.each_char.with_index do |b_ch, j|
+				cost = a_ch == b_ch ? 0 : 1
+				v1[j + 1] = [v1[j] + 1, v0[j + 1] + 1, v0[j] + cost].min
 			end
+			v0 = v1.dup
+			#p v1
 		end
 
-		return buffer.last
+		return v0[b.length]
 	end
 
-	# ported from c++s std::mismatch
-	def self.mismatch *arrs
-		first = arrs.shift
-		first.zip(*(arrs.map &:to_a)).each_with_index do |x, i|
-			return i if x.uniq.size > 1
+	# get the sum of the levenshtein distances from `test` to `strings`
+	# if `max` is supplied, the method will exit early and return `nil`
+	# if the sum of the distances goes higher.
+	# - `test` is a string
+	# - `strings` is an array of strings
+	def self.sum_distances test, strings, max=nil
+		sum = 0
+		strings.each do |s|
+			sum += distance s, test
+			return nil if max && max < sum
 		end
-		return nil
+		return sum
 	end
 
 	# calculate upper bound on sum of levenshtein distance from strings
@@ -48,17 +46,14 @@ module LevenshteinSearcher
 	# - `strings` is the strings to compare with
 	# - `max_dist` (optional) upper bound on distance
 	def self.singlethread_search space, strings, max_dist=nil
-		max_dist ||= self.calculate_max_distance strings
+		max_dist ||= calculate_max_distance strings
 		sorted_words = []
 		max_dist.times do sorted_words.push [] end
 
 		min_dist = max_dist
 		space.each do |word|
-			dist = 0
-			strings.each do |w|
-				dist += self.distance w, word
-				next if min_dist < dist
-			end
+			dist = sum_distances word, strings, min_dist
+			next if !dist
 			sorted_words[dist].push word
 			min_dist = dist if dist < min_dist
 		end
@@ -71,7 +66,7 @@ module LevenshteinSearcher
 	def self.multithread_search space, strings, threads, max_dist=nil
 		raise 'Thread count must be more than 1!' if threads <= 1
 
-		max_dist ||= self.calculate_max_distance strings
+		max_dist ||= calculate_max_distance strings
 		sorted_words = []
 		max_dist.times do sorted_words.push [] end
 
@@ -85,7 +80,7 @@ module LevenshteinSearcher
 		min_dist = max_dist
 		lists.each.with_index do |list, i|
 			Thread.new do
-				local_min, local_words = self.singlethread_search list, strings, max_dist
+				local_min, local_words = singlethread_search list, strings, max_dist
 				min_dist = local_min if local_min < min_dist
 				local_words.each.with_index do |w, i|
 					sorted_words[i] += w
@@ -102,6 +97,10 @@ module LevenshteinSearcher
 		return [min_dist, sorted_words]
 	end
 
+	def self.find_alphabet strings
+		strings.reduce(:+).chars.uniq.sort
+	end
+
 	# generates a search space based on the alphabet and range in `strings`
 	# if `file` is specified, then the file will either be written to or
 	# read from depending on the `write` argument.
@@ -110,12 +109,22 @@ module LevenshteinSearcher
 			return File.read(file).split "\n"
 		end
 
-		chars = strings.reduce(:+).chars.uniq.sort
+		alphabet = find_alphabet strings
 		range = Range.new *strings.map(&:length).minmax
+		counts = alphabet.map do |c|
+			occurrences = strings.map do |s| s.count c end
+			[c, occurrences.max]
+		end.to_h
 
 		space = []
 		range.each do |len|
-			space += chars.repeated_permutation(len).to_a.map &:join
+			space += alphabet.repeated_permutation(len).to_a.map &:join
+		end
+
+		space.select! do |str|
+			counts.all? do |c, v|
+				str.count(c) <= v
+			end
 		end
 
 		if file && write
@@ -129,47 +138,99 @@ module LevenshteinSearcher
 		return space
 	end
 
+	# perturb the string to have a distance of 1 from the input
+	def self.perturb str, alphabet=nil
+		alphabet ||= str.chars.uniq.sort
+		out = []
+
+		str.each_char.with_index do |c, i|
+			# delete one character
+			out.push str[0...i] + str[(i+1)..-1]
+
+			alphabet.each do |a|
+				# change one character
+				temp = str.dup
+				temp[i] = a
+				out.push temp
+
+				# add one character
+				temp = str[0...i] + ' ' + str[i..-1]
+				temp[i] = a
+				out.push temp
+			end
+		end
+
+		# add one character to end
+		temp = str + ' '
+		alphabet.each do |a|
+			temp[-1] = a
+			out.push temp
+		end
+
+		return out.uniq - [str]
+	end
+
 	# find the strings that have the lowest total levenshtein distance to the
-	# strings passed in
+	# strings passed in via a dumb brute force algorithm
 	# - `strings` is the list of strings to compare distances with
-	# - `space` is either a string indicating a file path containing the search
-	#   space seperated by newlines, or an array of strings containing the full
-	#   search space.
+	# - `space` (optional) is either a string indicating a file path containing
+	#   the search space seperated by newlines, or an array of strings
+	#   containing the search space.
 	# - `write` should only be specified when `space` is a file path.
 	#   it indicates whether the file should be written to and the search space
 	#   regenerated, or if the file should just be read.
 	# - `threads` (optional) is the thread count
-	def self.search strings, search_space=nil, write=false, threads: 1
+	# 
+	# don't use this, matt's algorithm is faster
+	def self.bruteforce_search strings, search_space=nil, write=false, threads: 1
 		raise ArgumentError, 'Thread count must be at least 1!' if threads < 1
 
 		space = []
 		if search_space.is_a? Array
 			raise TypeError, 'Second argument must be a file path!' if write
 			space = search_space
-		elsif search_space.is_a? String || !search_space
-			space = self.generate_search_space strings, file: search_space, write: write
+		elsif search_space.is_a?(String) || !search_space
+			space = generate_search_space strings, file: search_space, write: write
 		else
 			raise TypeError, 'Search space argument must be a string or array of strings!'
 		end
 
-		max_dist = self.calculate_max_distance strings
+		max_dist = calculate_max_distance strings
 
 		min = words = nil
 		if threads == 1
-			min, words = self.singlethread_search space, strings, max_dist
+			min, words = singlethread_search space, strings, max_dist
 		else
-			min, words = self.multithread_search space, strings, threads, max_dist
+			min, words = multithread_search space, strings, threads, max_dist
 		end
 
 		return [min, words.select(&:any?).map(&:sort)]
 	end
+
+	# search algorithm Matt proposed
+	def self.matt_search strings
+		cur = strings # good luck
+		old = []
+		alphabet = find_alphabet strings
+		cur_dist = cur.map do |x| sum_distances x, strings end .min
+
+		until cur == old || cur == []
+			old = cur
+
+			perturbed = cur.map do |w| perturb w, alphabet end .uniq
+
+			dists = perturbed.flatten.uniq.map do |x|
+				[x, sum_distances(x, strings)]
+			end
+			cur = dists.select do |s, d| d <= cur_dist end .map(&:first).sort
+			cur_dist = dists.map(&:last).min
+		end
+
+		return old
+	end
 end
 
 if __FILE__ == $0
-	puts LevenshteinSearcher.search(
-		%w[watr mizu wesi wodi awwa su], # %w[er kuuki ilma hava vozduh aire],
-		'levenshtein.txt',
-		ARGV.empty?,
-		threads: 20
-	)[1][0].join ', '
+	list = %w[watr mizu wesi su wodi awwa]
+	puts LevenshteinSearcher.matt_search(list).join ', '
 end
