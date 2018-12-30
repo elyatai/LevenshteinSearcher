@@ -3,7 +3,8 @@ require_relative 'levenshtein_searcher.rb'
 
 lists = [
 	%w[watr mizu  wesi su   wodi   awwa],
-	%w[er   kuuki ilma hava vozduh aire]
+	%w[er   kuuki ilma hava vozduh aire],
+	%w[test hello lorem ipsum]
 ]
 listcount = lists.length
 
